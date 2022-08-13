@@ -50,6 +50,7 @@
     </div>
   </div>
   <script>
+    // 模拟服务端发起推送操作
     $('#btn').on('click', (e) => {
       e.preventDefault()
       const info = $('#info').val()
@@ -67,12 +68,14 @@
       })
     })
 
+    // 修改标签推送状态
     function pushStatus(s, status, type) {
       $(`#${s} .card-header span`).html(
         `<span class="text-${type}">${status}</span>`
       )
     }
 
+    // 添加返回消息标签
     function pushRecord(s, datas, pre) {
       const all = datas.reduce((a, c, ind) => {
         const now = (ind + pre) % 2
