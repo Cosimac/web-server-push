@@ -85,9 +85,10 @@
       }, '')
       $(`#${s} ol`).append(all)
     }
-
+    // 短轮询
     function polling() {
       const s = 'polling'
+      // 缓存前端已经获取的最新id
       let id = 0
       pushStatus(s, '等待中', 'secondary')
       function poll() {
@@ -95,25 +96,23 @@
         $.ajax({
           url: '/api/polling',
           data: { id },
+        }).done((res) => {
+          pushStatus(s, '请求成功', 'success')
+          pushRecord(s, res, id)
+          id += res.length
+        }).fail((e) => {
+          pushStatus(s, '请求失败', 'danger')
+        }).always(() => {
+          // 10s后再次请求
+          setTimeout(poll, 10000)
+          setTimeout(() => {
+            pushStatus(s, '等待中', 'secondary')
+          }, 1000)
         })
-          .done((res) => {
-            pushStatus(s, '请求成功', 'success')
-            pushRecord(s, res, id)
-            id += res.length
-          })
-          .fail((e) => {
-            pushStatus(s, '请求失败', 'danger')
-          })
-          .always(() => {
-            setTimeout(poll, 11000)
-            setTimeout(() => {
-              pushStatus(s, '等待中', 'secondary')
-            }, 1000)
-          })
       }
       poll()
     }
-
+    // 长轮询
     function longPolling() {
       const s = 'long-polling'
       let id = 0
@@ -124,22 +123,19 @@
           url: '/api/long-polling',
           data: { id },
           timeout: 60000,
+        }).done((res) => {
+          pushStatus(s, '请求成功', 'success')
+          pushRecord(s, res, id)
+          id += res.length
+        }).fail((e) => {
+          pushStatus(s, '请求失败', 'danger')
+        }).always(() => {
+          setTimeout(poll, 1000)
         })
-          .done((res) => {
-            pushStatus(s, '请求成功', 'success')
-            pushRecord(s, res, id)
-            id += res.length
-          })
-          .fail((e) => {
-            pushStatus(s, '请求失败', 'danger')
-          })
-          .always(() => {
-            setTimeout(poll, 1000)
-          })
       }
       poll()
     }
-
+    // SSE
     function sse() {
       const s = 'sse'
       let id = 0
@@ -161,7 +157,7 @@
         pushStatus(s, '连接错误', 'danger')
       }
     }
-
+    // webSocket
     function ws() {
       const s = 'ws'
       let id = 0
@@ -187,7 +183,7 @@
         pushStatus(s, '连接已断开', 'danger')
       }
     }
-
+    // iframe
     function iframe() {
       const s = 'iframe'
       let id = 0
@@ -195,6 +191,7 @@
         pushRecord(s, data, id)
         id += data.length
       }
+      // 注册给iframe使用的方法
       window.change = change
       $('body').append('<iframe src="/api/iframe"></iframe>')
       pushStatus(s, '未知状态', 'warning')

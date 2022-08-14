@@ -1,3 +1,6 @@
+/**
+ * @description: 服务端代码
+ */
 const http = require('http');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -5,53 +8,59 @@ const { parse } = require('url');
 
 // 缓存需要推送的信息
 const datas = [];
-// 各种方案触发推送时的回调
+// 储存各种方案触发推送时的回调方法
 const callbacks = {};
 
-// 注册接口回调
+// 开启服务
 const server = http.createServer().listen(3000);
 server.on('request', (req, res) => {
   const { pathname, query } = parse(req.url, true);
-  if (pathname === '/') {
+  if (pathname === '/') { // 加载html页面
     res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
     return res.end(fs.readFileSync('static/index.html'));
-  } else if (pathname.startsWith('/static/')) {
+  } else if (pathname.startsWith('/static/')) { // 加载静态资源
     res.statusCode = 200;
     return res.end(fs.readFileSync(pathname.substring(1)));
-  } else if (pathname === '/api/push') {
+  } else if (pathname === '/api/push') { // 如果是前端触发推送接口
     if (query.info) {
+      // 缓存推送信息
       datas.push(query.info);
       const d = JSON.stringify([query.info]);
+      // 触发所有推送回调
       Object.keys(callbacks).forEach(k => callbacks[k](d));
     }
-  } else if (pathname === '/api/polling') {
+  } else if (pathname === '/api/polling') { // 短轮询
     const id = parseInt(query.id || '0', 10) || 0;
     res.writeHead(200, { 'Content-Type': 'application/json;' });
     return res.end(JSON.stringify(datas.slice(id)));
-  } else if (pathname === '/api/long-polling') {
+  } else if (pathname === '/api/long-polling') { // 长轮询
     const id = parseInt(query.id || '0', 10) || 0;
     const cbk = 'long-polling';
     delete callbacks[cbk];
     const data = datas.slice(id);
     res.writeHead(200, { 'Content-Type': 'application/json' });
+    // 发起请求时，正好有新消息就返回
     if (data.length) {
       return res.end(JSON.stringify(data));
     }
     req.on('close', () => {
       delete callbacks[cbk];
     });
+    // 注册新消息回调
     callbacks[cbk] = (d) => {
       res.end(d);
     };
     return;
-  } else if (pathname === '/api/sse') {
+  } else if (pathname === '/api/sse') { // SSE
     const cbk = 'sse';
     delete callbacks[cbk];
+    // 核心设置
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Connection': 'keep-alive',
     });
     res.write(`data: ${JSON.stringify(datas)}\n\n`);
+    // 注册新消息回调
     callbacks[cbk] = (d) => {
       res.write(`data: ${d}\n\n`);
     };
@@ -59,9 +68,10 @@ server.on('request', (req, res) => {
       delete callbacks[cbk];
     });
     return;
-  } else if (pathname === '/api/iframe') {
+  } else if (pathname === '/api/iframe') { // iframe
     const cbk = 'iframe';
     delete callbacks[cbk];
+    // 返回缓存信息
     res.write(`<script>window.parent.change(${JSON.stringify(datas)});</script>`);
     callbacks[cbk] = (d) => {
       res.write(`<script>window.parent.change(${d});</script>`);
@@ -76,13 +86,15 @@ server.on('request', (req, res) => {
   res.end();
 });
 
-server.on('upgrade', (req, socket) => {
+server.on('upgrade', (req, socket) => { // webSocket
   const cbk = 'ws';
   delete callbacks[cbk];
   const acceptKey = req.headers['sec-websocket-key'];
   const hash = generateAcceptValue(acceptKey);
   const responseHeaders = ['HTTP/1.1 101 Web Socket Protocol Handshake', 'Upgrade: WebSocket', 'Connection: Upgrade', `Sec-WebSocket-Accept: ${hash}`];
+  // 告知前端这是WebSocket协议
   socket.write(responseHeaders.join('\r\n') + '\r\n\r\n');
+  // 发送数据
   socket.write(constructReply(datas));
   callbacks[cbk] = (d) => {
     socket.write(constructReply(d));
